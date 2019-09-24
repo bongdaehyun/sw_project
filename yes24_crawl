@@ -1,0 +1,75 @@
+import urllib.request
+from bs4 import BeautifulSoup
+import pymysql
+import re
+import time
+pages=range(18,200)
+p=re.compile("\(YES24 단독 스페셜 에디션\)")
+
+
+def insert_test(title, author,publisher,date,price,content ,category,score):
+    conn=pymysql.connect(host='202.31.200.140 : 3306',user='sw',password='33507347',db='sw_project')
+    try:
+        with conn.cursor() as curs:
+            sql="INSERT INTO books (title, author,publisher,date,price,content,category,score) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)"
+            curs.execute(sql,(title, author,publisher,date,price,content ,category,score))
+        conn.commit()
+    finally:
+        conn.close()
+        
+
+for page in pages:
+    url = "http://www.yes24.com/24/category/bestseller?CategoryNumber=001&sumgb=06&fetchSize=40&PageNumber="+str(page)
+    sourcecode = urllib.request.urlopen(url).read()
+    soup = BeautifulSoup(sourcecode, "html.parser")
+
+    infors=soup.find_all('td',class_="goodsTxtInfo")
+    for infor in infors:
+        try:
+            title=infor.find("a")
+            title=title.text
+            title=p.sub("",title)
+            #print(title)
+            data=infor.find('div',class_="aupu")
+            data=data.text.split("|")
+            author=data[0]
+            author=" ".join(author.split())
+            #print(author)
+            publisher=data[1]
+            publisher=" ".join(publisher.split())
+            #print(publisher)
+            date=data[2]
+            date=" ".join(date.split())
+            #print(date)
+            #link 접속
+            link = infor.find("a")['href']
+            link = "http://www.yes24.com"+link
+            sourcecode2 = urllib.request.urlopen(link).read()
+            soup2 = BeautifulSoup(sourcecode2, "html.parser")
+            score=soup2.find("em",class_="yes_b")
+            score=score.text
+        
+            #print(score)
+            content=soup2.find("div",class_="infoWrap_txtInner")
+            content=content.text
+            content=" ".join(content.split())
+            #print(content)
+            #infoset_goodsCate > div.infoSetCont_wrap > dl:nth-child(1) > dd > ul > li > a:nth-child(6)
+        except AttributeError:
+            pass
+        try:
+            try:
+                categorys=soup2.select("#infoset_goodsCate > div.infoSetCont_wrap > dl:nth-child(1) > dd > ul > li > a:nth-child(8)")
+                category=categorys[0].text
+                #print("카테고리:"+category)
+            except IndexError:
+                categorys=soup2.select("#infoset_goodsCate > div.infoSetCont_wrap > dl:nth-child(1) > dd > ul > li > a:nth-child(6)")
+                category=categorys[0].text
+                #print("카테고리:"+category)
+                price=soup2.find('em',class_="yes_m")
+                price=price.text
+        except:
+            pass
+        
+        insert_test(title, author,publisher,date,price,content ,category,score)
+    time.sleep(10)
